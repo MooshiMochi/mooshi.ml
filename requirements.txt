@@ -1,0 +1,7 @@
+fastapi[all]
+websockets
+aiohttp
+python-dotenv
+ujson
+aioboto3
+loguru
