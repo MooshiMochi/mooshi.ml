@@ -3,11 +3,12 @@ from base64 import b64encode
 from json import dumps as JSON_ENCODER
 from typing import Optional
 
+import aiofiles
 import uvicorn
-from aiobotocore.session import get_session
 from aiohttp import ClientSession
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Request, Response, UploadFile
+from fastapi import FastAPI, Request, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -35,10 +36,14 @@ if os.name == "nt":
     _HOST = "192.168.0.11"
     REDIRECT_URI = f"http://{_HOST}:{_PORT}/auth/handshake"
     DISCORD_REDIRECT_URI = f"https://discord.com/api/oauth2/authorize?client_id=1035273148448379021&redirect_uri=http%3A%2F%2F{_HOST}%3A80%2Fauth%2Fhandshake&response_type=code&scope=identify"
+    BASE_URL = f"http://{_HOST}:{_PORT}"
 
 else:
     REDIRECT_URI = f"{BASE_URL}/auth/handshake"
     DISCORD_REDIRECT_URI = "https://discord.com/api/oauth2/authorize?client_id=1035273148448379021&redirect_uri=https%3A%2F%2Fcdn.mooshi.ml%2Fauth%2Fhandshake&response_type=code&scope=identify"
+
+if not os.path.exists("content"):
+    os.mkdir("content")
 
 
 class APIWrapper(FastAPI):
@@ -46,12 +51,21 @@ class APIWrapper(FastAPI):
         super().__init__(*args, **kwargs)
 
         self.session: ClientSession = None
-        self.boto_session = get_session()
 
 
 app = APIWrapper()
 
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/content", StaticFiles(directory="content"), name="content")
 templates = Jinja2Templates(directory="static/templates")
 
 
@@ -145,7 +159,6 @@ async def handshake(request: Request, response: Response):
         )
 
     user = await get_user(access_token)
-    print(user)
     response = RedirectResponse("/", 303)
     response.set_cookie(
         "user",
@@ -153,67 +166,6 @@ async def handshake(request: Request, response: Response):
         httponly=True,
     )
     return response
-
-
-async def upload_file_to_cdn(folder: str, file: File) -> str:
-    try:
-        async with app.boto_session.create_client(
-            "s3",
-            region_name="auto",
-            endpoint_url=f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com",
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-        ) as client:
-            await client.put_object(
-                Bucket=BUCKET_NAME,
-                Key=f"{folder}/{file.filename}",
-                Body=await file.read(),
-            )
-            return "https://cdn.mooshi.ml/" + f"{folder}/{file.filename}"
-    except Exception as e:
-        logger.error(e)
-        return f"Something went wrong!: {e}"
-
-
-async def delete_file_from_cdn(folder: str, filename: str) -> str | bool:
-    try:
-        async with app.boto_session.create_client(
-            "s3",
-            region_name="auto",
-            endpoint_url=f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com",
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-        ) as client:
-            await client.delete_object(
-                Bucket=BUCKET_NAME,
-                Key=f"{folder}/{filename}",
-            )
-            return True
-    except Exception as e:
-        logger.error(e)
-        return f"Something went wrong!: {e}"
-
-
-async def get_stored_files(folder: str) -> list[str] | None:
-    try:
-        async with app.boto_session.create_client(
-            "s3",
-            region_name="auto",
-            endpoint_url=f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com",
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-        ) as client:
-            response = await client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=folder)
-            if response.get("Contents"):
-                return [
-                    f"https://cdn.mooshi.ml/{obj.get('Key')}"
-                    for obj in response.get("Contents")
-                ]
-            else:
-                return None
-    except Exception as e:
-        logger.error(e)
-        return None
 
 
 @app.post("/upload")
@@ -232,8 +184,13 @@ async def upload(request: Request, file: UploadFile) -> None:
     if not file:
         return Response("No file param was provided", 400)
 
-    resp = await upload_file_to_cdn(folder, file)
-    return {"message": resp}
+    if not os.path.exists(f"content/{folder}"):
+        os.makedirs(f"content/{folder}")
+
+    async with aiofiles.open(f"content/{folder}/{file.filename}", "wb+") as f:
+        await f.write(file.file.read())
+
+    return {"message": f"https://cdn.mooshi.ml/content/{folder}/{file.filename}"}
 
 
 @app.delete("/delete")
@@ -251,10 +208,15 @@ async def delete(request: Request, filename: str) -> None:
     if not filename:
         return Response("No file param was provided", 400)
 
-    resp = await delete_file_from_cdn(folder, filename)
-    if not isinstance(resp, str):
-        return {"message": "File deleted successfully"}
-    return {"error": resp}
+    if not os.path.exists(f"content/{folder}"):
+        os.makedirs(f"content/{folder}")
+
+    if not os.path.exists(f"content/{folder}/{filename}"):
+        return {"error": "File does not exist"}
+
+    os.remove(f"content/{folder}/{filename}")
+
+    return {"message": "File deleted successfully"}
 
 
 @app.get("/files")
@@ -270,8 +232,18 @@ async def get_files(request: Request) -> None:
         return Response("You do not have access to this page", 401)
 
     folder_url = f"{BASE_URL}/{folder}"
+
+    if not os.path.exists(f"content/{folder}"):
+        os.makedirs(f"content/{folder}")
+
     try:
-        return {"message": folder_url, "files": await get_stored_files(folder)}
+        return {
+            "message": folder_url,
+            "files": [
+                f"{BASE_URL}/content/{folder}/{x}"
+                for x in os.listdir(f"content/{folder}")
+            ],
+        }
     except Exception as e:
         return {"message": f"Something went wrong!: {e}"}
 

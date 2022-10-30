@@ -1,7 +1,7 @@
 // const base_url = "http://127.0.0.1:80";
 
-// const base_url = "http://192.168.0.11:80";
-const base_url = "https://cdn.mooshi.ml";
+const base_url = "http://192.168.0.11:8080";
+// const base_url = "https://cdn.mooshi.ml";
 
 const btn_upload = document.getElementById("btn_upload");
 btn_upload.addEventListener("click", () => {

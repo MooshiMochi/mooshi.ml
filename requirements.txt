@@ -3,8 +3,8 @@ websockets
 aiohttp
 python-dotenv
 ujson
-aiobotocore
 loguru
 jinja2
 motor
 python-multipart
+aiofiles
