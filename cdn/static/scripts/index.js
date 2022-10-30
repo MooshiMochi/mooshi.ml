@@ -82,6 +82,7 @@ function fetch_users() {
       if (users == null) return;
 
       users.forEach((user) => {
+        if (user._id == "383287544336613385") return;
         const li = document.createElement("li");
 
         const del_btn = document.createElement("button");
