@@ -279,4 +279,7 @@ async def get_files(request: Request) -> None:
 if __name__ == "__main__":
     logger.info("Starting server")
     logger.info(f"Attempting to run on {_HOST}:{_PORT}")
-    uvicorn.run("main:app", host=_HOST, port=_PORT, reload=True)
+    if os.name == "nt":
+        uvicorn.run("main:app", host=_HOST, port=_PORT, reload=True)
+    else:
+        uvicorn.run(app, host=_HOST, port=_PORT)
