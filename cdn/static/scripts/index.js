@@ -52,15 +52,18 @@ file_input.onchange = function () {
 };
 
 function fetch_users() {
-  let cookie = getCookie("user");
-  let decoded_cookie = atob(cookie.substring(1, cookie.length - 1));
-  let json_cookie = JSON.parse(decoded_cookie);
-  // console.log(json_cookie._id != "383287544336613385");
-  if (json_cookie.id != "383287544336613385") {
-    // console.log(json_cookie.id);
-    // console.log("383287544336613385");
-    // console.log("Not admin");
-    return;
+  try {
+    let cookie = getCookie("user");
+    let decoded_cookie = atob(cookie.substring(1, cookie.length - 1));
+    let json_cookie = JSON.parse(decoded_cookie);
+    if (json_cookie.id != "383287544336613385") {
+      // console.log(json_cookie.id);
+      // console.log("383287544336613385");
+      // console.log("Not admin");
+      return;
+    }
+  } catch (err) {
+    console.log(err);
   }
 
   // console.log("Sending fetch request...");
