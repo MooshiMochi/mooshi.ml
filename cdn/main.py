@@ -169,8 +169,10 @@ async def handshake(request: Request):
         b64encode(JSON_ENCODER(user).encode("utf-8")).decode("utf-8"),
         httponly=True,
     )
-    user["_id"] = user.get("id", "0")
-    await db.users.upsert(user)
+    db_user = await db.users.get_by_id(user.get("id", "girthychode69420"))
+    if db_user:
+        user["_id"] = user.get("id", "0")
+        await db.users.upsert(user)
     return response
 
 
