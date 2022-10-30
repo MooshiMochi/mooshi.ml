@@ -11,10 +11,10 @@ from fastapi import FastAPI, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
-from logger.logger import init_logging
 from loguru import logger
 from uvicorn import Config, Server
 
+from logger import init_logging
 from manager import ConnectionManager
 
 load_dotenv()
