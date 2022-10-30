@@ -37,7 +37,7 @@ if os.name == "nt":
     DISCORD_REDIRECT_URI = f"https://discord.com/api/oauth2/authorize?client_id=1035273148448379021&redirect_uri=http%3A%2F%2F{_HOST}%3A80%2Fauth%2Fhandshake&response_type=code&scope=identify"
 
 else:
-    REDIRECT_URI = f"{_HOST}/auth/handshake"
+    REDIRECT_URI = f"{BASE_URL}/auth/handshake"
     DISCORD_REDIRECT_URI = "https://discord.com/api/oauth2/authorize?client_id=1035273148448379021&redirect_uri=https%3A%2F%2Fcdn.mooshi.ml%2Fauth%2Fhandshake&response_type=code&scope=identify"
 
 
@@ -277,4 +277,6 @@ async def get_files(request: Request) -> None:
 
 
 if __name__ == "__main__":
+    logger.info("Starting server")
+    logger.info(f"Attempting to run on {_HOST}:{_PORT}")
     uvicorn.run("main:app", host=_HOST, port=_PORT, reload=True)
