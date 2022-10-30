@@ -1,8 +1,5 @@
-// const base_url = "http://127.0.0.1:80";
-
-// const base_url = "http://192.168.0.11:8080";
-//
-const base_url = "https://cdn.mooshi.ml";
+// const base_url = "https://cdn.mooshi.ml";
+const base_url = "http://192.168.0.11:8080";
 
 const btn_upload = document.getElementById("btn_upload");
 btn_upload.addEventListener("click", () => {
@@ -30,7 +27,6 @@ btn_upload.addEventListener("click", () => {
 const upload_span = document.getElementById("file-input-select");
 const file_input = document.getElementById("file-input");
 file_input.onchange = function () {
-  // console.log("File event triggered");
   const file = file_input.files[0];
   if (file != null) {
     upload_span.innerHTML = `SELECTED ${file.name}`;

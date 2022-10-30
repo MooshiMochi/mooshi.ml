@@ -17,7 +17,12 @@ body {
   backdrop-filter: blur(10px);
   background-color: #d2738a;
   color: #c1b492;
-  /* height: 100%; */
+}
+
+@media only screen and (min-device-width: 320px) and (max-device-width: 480px) {
+  html {
+    position: relative;
+  }
 }
 
 .footer {
