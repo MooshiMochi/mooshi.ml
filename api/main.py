@@ -7,7 +7,7 @@ from typing import Any
 
 import aiohttp
 from dotenv import load_dotenv, set_key
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
@@ -215,6 +215,11 @@ async def index():
     return RedirectResponse(url=f"{BASE_API_URL}/docs", status_code=303)
 
 
+@app.get("/auth/handshake")
+async def handshake(request: Request):
+    return {"request": request}
+
+
 @app.get(f"{BASE_API_URL}/spotify/authorized")
 async def authorized(request: Request):
     code = request.query_params.get("code")
@@ -279,6 +284,17 @@ async def websocket(websocket: WebSocket, client_id: int):
 
     setattr(websocket, "id", client_id)
     await app.manager._handler(websocket)
+
+
+@app.post("/cdn/upload")
+async def upload_file(file: UploadFile):
+    if file.content_type not in ["image/jpeg", "image/png"]:
+        return PlainTextResponse("Invalid file type", status_code=400)
+    file_name = file.filename
+    file_path = f"{_CDN_PATH}/{file_name}"
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+    return PlainTextResponse(f"File uploaded to {_CDN_URL}/{file_name}")
 
 
 if __name__ == "__main__":
