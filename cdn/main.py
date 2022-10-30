@@ -35,7 +35,7 @@ BASE_URL = f"https://cdn.mooshi.ml"
 if os.name == "nt":
     _HOST = "192.168.0.11"
     REDIRECT_URI = f"http://{_HOST}:{_PORT}/auth/handshake"
-    DISCORD_REDIRECT_URI = f"https://discord.com/api/oauth2/authorize?client_id=1035273148448379021&redirect_uri=http%3A%2F%2F{_HOST}%3A80%2Fauth%2Fhandshake&response_type=code&scope=identify"
+    DISCORD_REDIRECT_URI = f"https://discord.com/api/oauth2/authorize?client_id=1035273148448379021&redirect_uri=http%3A%2F%2F{_HOST}%3A8080%2Fauth%2Fhandshake&response_type=code&scope=identify"
     BASE_URL = f"http://{_HOST}:{_PORT}"
 
 else:
