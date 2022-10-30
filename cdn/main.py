@@ -7,14 +7,15 @@ import aiofiles
 import uvicorn
 from aiohttp import ClientSession
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Response, UploadFile
+from fastapi import FastAPI, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 
-from utils.checks import isUserAuthorized, parse_user_form_cookie
+from utils.checks import isMooshi, isUserAuthorized, parse_user_form_cookie
+from utils.database import db
 
 load_dotenv()
 
@@ -96,7 +97,7 @@ async def exchange_code(code: str) -> Optional[str]:
         "https://discord.com/api/oauth2/token", data=data, headers=headers
     ) as response:
         data = await response.json()
-        logger.debug(f"Got response from discord: {data}")
+        # logger.debug(f"Got response from discord: {data}")
         if data.get("error") or data.get("message"):
             logger.error(data)
             return None
@@ -113,29 +114,32 @@ async def get_user(access_token):
 
 
 @app.get("/auth/login")
-async def login(request: Request, response: Response) -> None:
-    if not isUserAuthorized(request.cookies):
+async def login(request: Request) -> None:
+    if not await isUserAuthorized(request.cookies):
         return RedirectResponse(DISCORD_REDIRECT_URI, 303)
     else:
         return RedirectResponse("/", 303)
 
 
 @app.get("/auth/logout")
-async def logout(request: Request, response: Response) -> None:
-    if not isUserAuthorized(request.cookies):
-        return Response("You do not have access to this page", 403)
+async def logout(request: Request) -> None:
+    if not await isUserAuthorized(request.cookies):
+        return JSONResponse({"error": "You do not have access to this page"}, 403)
     response = RedirectResponse("/", 303)
     response.delete_cookie("user")
     return response
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, response: Response) -> None:
-    logger.debug(f"Authorized: {isUserAuthorized(request.cookies)}")
-    if not isUserAuthorized(request.cookies):
+async def index(request: Request) -> None:
+    logger.debug(f"Authorized: {await isUserAuthorized(request.cookies)}")
+    if not await isUserAuthorized(request.cookies):
         return templates.TemplateResponse("login.html", {"request": request})
     else:
-        response = templates.TemplateResponse("index.html", {"request": request})
+        if isMooshi(request.cookies):
+            response = templates.TemplateResponse("admin.html", {"request": request})
+        else:
+            response = templates.TemplateResponse("index.html", {"request": request})
         response.set_cookie("user", request.cookies.get("user"))
         return response
 
@@ -148,7 +152,7 @@ async def cookie_clear(request: Request):
 
 
 @app.get("/auth/handshake")
-async def handshake(request: Request, response: Response):
+async def handshake(request: Request):
     if code := request.query_params.get("code"):
         access_token = await exchange_code(code)
         print(access_token)
@@ -165,6 +169,8 @@ async def handshake(request: Request, response: Response):
         b64encode(JSON_ENCODER(user).encode("utf-8")).decode("utf-8"),
         httponly=True,
     )
+    user["_id"] = user.get("id", "0")
+    await db.users.upsert(user)
     return response
 
 
@@ -172,17 +178,19 @@ async def handshake(request: Request, response: Response):
 async def upload(request: Request, file: UploadFile) -> None:
 
     if not request.cookies.get("user"):
-        return Response("This endpoint requires valid authentication", 401)
-    if not isUserAuthorized(request.cookies):
-        return Response("You do not have access to this page", 401)
+        return JSONResponse(
+            {"error": "This endpoint requires valid authentication"}, 401
+        )
+    if not await isUserAuthorized(request.cookies):
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
 
     user = parse_user_form_cookie(request.cookies)
     folder = user.get("id")
     if not folder:
-        return Response("You do not have access to this page", 401)
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
 
     if not file:
-        return Response("No file param was provided", 400)
+        return JSONResponse({"error": "No file param was provided"}, 400)
 
     if not os.path.exists(f"content/{folder}"):
         os.makedirs(f"content/{folder}")
@@ -194,42 +202,96 @@ async def upload(request: Request, file: UploadFile) -> None:
 
 
 @app.delete("/delete")
-async def delete(request: Request, filename: str) -> None:
+async def delete(
+    request: Request, filename: Optional[str] = None, user_id: Optional[str] = None
+) -> None:
+    logger.info(f"Filename: {filename} User: {user_id}")
     if not request.cookies.get("user"):
-        return Response("This endpoint requires valid authentication", 401)
-    if not isUserAuthorized(request.cookies):
-        return Response("You do not have access to this page", 401)
+        return JSONResponse(
+            {"error": "This endpoint requires valid authentication"}, 401
+        )
+    if not await isUserAuthorized(request.cookies):
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
 
     user = parse_user_form_cookie(request.cookies)
     folder = user.get("id")
     if not folder:
-        return Response("You do not have access to this page", 401)
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
 
-    if not filename:
-        return Response("No file param was provided", 400)
+    if not filename and not user_id:
+        return JSONResponse({"error": "No filename or user_id param was provided"}, 400)
 
-    if not os.path.exists(f"content/{folder}"):
-        os.makedirs(f"content/{folder}")
+    if filename:
+        if not os.path.exists(f"content/{folder}"):
+            os.makedirs(f"content/{folder}")
 
-    if not os.path.exists(f"content/{folder}/{filename}"):
-        return {"error": "File does not exist"}
+        if not os.path.exists(f"content/{folder}/{filename}"):
+            return {"error": "File does not exist"}
 
-    os.remove(f"content/{folder}/{filename}")
+        os.remove(f"content/{folder}/{filename}")
 
-    return {"message": "File deleted successfully"}
+        return {"message": "File deleted successfully"}
+
+    elif user_id:
+        user_data = await db.users.get_by_id(user_id)
+        if not user_data:
+            return {"error": "User does not have access to the database."}
+        else:
+            user_data = await db.users.delete_by_id(user_id)
+            return {"message": "User deleted successfully", "data": user_data}
+
+    else:
+        # can only provide one param at a time
+        return JSONResponse({"error": "You can only provide one param at a time"}, 400)
+
+
+@app.get("/users")
+async def get_users(request: Request) -> None:
+    if not request.cookies.get("user"):
+        return JSONResponse(
+            {"error": "This endpoint requires valid authentication"}, 401
+        )
+    if not isMooshi(request.cookies):
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
+
+    users = await db.users.get_all()
+    # logger.debug(f"Returning: {users}")
+    return JSONResponse({"users": users}, 200)
+
+
+@app.post("/add_user")
+async def add_user(request: Request, user_id: Optional[str]) -> None:
+    if not request.cookies.get("user"):
+        return JSONResponse(
+            {"error": "This endpoint requires valid authentication"}, 401
+        )
+    if not isMooshi(request.cookies):
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
+
+    if not user_id:
+        return JSONResponse({"error": "No user_id param was provided"}, 400)
+
+    user_data = await db.users.get_by_id(user_id)
+    if not user_data:
+        await db.users.upsert({"_id": user_id})
+        return {"message": "User added successfully"}
+    else:
+        return {"error": "User is already in the database."}
 
 
 @app.get("/files")
 async def get_files(request: Request) -> None:
     if not request.cookies.get("user"):
-        return Response("This endpoint requires valid authentication", 401)
-    if not isUserAuthorized(request.cookies):
-        return Response("You do not have access to this page", 401)
+        return JSONResponse(
+            {"error": "This endpoint requires valid authentication"}, 401
+        )
+    if not await isUserAuthorized(request.cookies):
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
 
     user = parse_user_form_cookie(request.cookies)
     folder = user.get("id")
     if not folder:
-        return Response("You do not have access to this page", 401)
+        return JSONResponse({"error": "You do not have access to this page"}, 401)
 
     folder_url = f"{BASE_URL}/{folder}"
 

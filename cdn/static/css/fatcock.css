@@ -126,6 +126,7 @@ a {
   bottom: 1em;
   text-align: left;
   transition: 0.3s;
+  box-shadow: 0px 4px 16px 0px rgba(210, 115, 138, 0.4);
 }
 
 .VText {
@@ -169,4 +170,52 @@ a {
   animation-iteration-count: infinite;
   animation-direction: alternate;
   animation-play-state: running;
+}
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+
+  /* animation: growDown 200ms ease-in-out forwards;
+  transform-origin: top center; */
+
+  animation: rotateMenu 400ms ease-in-out forwards;
+  transform-origin: top center;
+}
+
+@keyframes rotateMenu {
+  0% {
+    transform: rotateX(-90deg);
+  }
+  70% {
+    transform: rotateX(20deg);
+  }
+  100% {
+    transform: rotateX(0deg);
+  }
+}
+
+/* @keyframes growDown {
+  0% {
+    transform: scaleY(0);
+  }
+  80% {
+    transform: scaleY(0.8);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+} */
+
+.dropdown.active .dropdown-content {
+  display: block;
+  position: relative;
 }
