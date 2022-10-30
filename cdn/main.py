@@ -141,6 +141,12 @@ async def index(request: Request) -> None:
         else:
             response = templates.TemplateResponse("index.html", {"request": request})
         response.set_cookie("user", request.cookies.get("user"))
+        cookie_user = parse_user_form_cookie(request.cookies)
+        cookie_user["_id"] = cookie_user.get("id", "0")
+        db_user = await db.users.get_by_id(cookie_user.get("id", None))
+        # print(db_user)
+        if db_user and (db_user.get("username") is None):
+            await db.users.upsert(cookie_user)
         return response
 
 
