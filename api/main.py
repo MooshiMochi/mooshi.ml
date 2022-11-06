@@ -259,7 +259,7 @@ async def authorized(request: Request):
     if client := app.manager.get_ws(destination_client_id):
         await client.send_json(json_data)
         return PlainTextResponse(
-            f"Authorized, you can close this tab now.\nPlease wait about 10 seconds before running '/playlist load {json_data['playlist_name']}'."
+            f"Authorized, you can close this tab now.\nPlease wait about 10 seconds before running '/playlist load {json_data['playlist_name']}'.\n\nNOTE: Some songs may not be available in the UK, and will be skipped."
         )
     else:
         return PlainTextResponse(
