@@ -11,11 +11,10 @@ from fastapi import FastAPI, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
-from loguru import logger
-from uvicorn import Config, Server
-
 from logger import init_logging
+from loguru import logger
 from manager import ConnectionManager
+from uvicorn import Config, Server
 
 load_dotenv()
 init_logging()
@@ -33,7 +32,7 @@ with open("config.json", "r") as f:
 
 API_VERSION = API_CONFIG.get("version", "v1")
 
-BASE_API_URL = f"/api/{API_VERSION}"
+BASE_API_URL = f"/{API_VERSION}"
 # logger: Logger = getLogger("api")
 
 
